@@ -1,0 +1,1105 @@
+import os
+import math
+
+# Diccionario de defectos y criterios de evaluación
+datos_soldadura = {
+    "Subcorte": {
+        "AWS D1.1": {
+            "Tubular": {
+                "Carga cíclica": {
+                    "Elemento principal": {"profundidad_maxima": 0.25},
+                    "Elemento no principal": {"profundidad_maxima": 0.25}
+                },
+                "Carga estática": {
+                    "Elemento principal": {"profundidad_maxima": 0.5},
+                    "Elemento no principal": {"profundidad_maxima": 0.5}
+                }
+            },
+            "No tubular": {
+                "Carga cíclica": {
+                    "Elemento principal": {"profundidad_maxima": 0.25},
+                    "Elemento no principal": {"profundidad_maxima": 0.25}
+                },
+                "Carga estática": {
+                    "Elemento principal": {"profundidad_maxima": 0.5},
+                    "Elemento no principal": {"profundidad_maxima": 0.5}
+                }
+            },
+            "Referencia": "AWS D1.1, Sección 6.26.2.1",
+            "Descripcion": "El subcorte reduce la sección efectiva del material, comprometiendo la integridad estructural..."
+        },
+        "AWS D1.3": {
+            "General": {"profundidad_maxima": 0.20},
+            "Referencia": "AWS D1.3, Sección 5.15.2.1",
+            "Descripcion": "En el contexto de soldadura de chapas metálicas, el subcorte es especialmente peligroso..."
+        },
+        "AWS D1.5": {
+            "General": {"profundidad_maxima": 0.3},
+            "Referencia": "AWS D1.5, Sección 6.15.2.2",
+            "Descripcion": "En la construcción de puentes, la resistencia a la fatiga es una preocupación crítica..."
+        },
+        "ASME IX": {
+            "General": {"profundidad_maxima": 0.25},
+            "Referencia": "ASME IX, Sección QW-191",
+            "Descripcion": "En aplicaciones de alta presión, como en recipientes a presión y tuberías..."
+        },
+        "API 1104": {
+            "General": {"profundidad_maxima": 0.25},
+            "Referencia": "API 1104, Sección 6.15.2.1",
+            "Descripcion": "El subcorte en soldaduras de tuberías es especialmente crítico debido a las altas presiones..."
+        }
+    },
+    "Porosidad": {
+        "AWS D1.1": {
+            "Tubular": {
+                "Carga cíclica": {
+                    "Elemento principal": {"diametro_maximo": 2.0, "separacion_minima": 20},
+                    "Elemento no principal": {"diametro_maximo": 2.0, "separacion_minima": 20}
+                },
+                "Carga estática": {
+                    "Elemento principal": {"diametro_maximo": 2.5, "separacion_minima": 10},
+                    "Elemento no principal": {"diametro_maximo": 2.5, "separacion_minima": 10}
+                }
+            },
+            "No tubular": {
+                "Carga cíclica": {
+                    "Elemento principal": {"diametro_maximo": 1.0, "separacion_minima": 40},
+                    "Elemento no principal": {"diametro_maximo": 1.0, "separacion_minima": 40}
+                },
+                "Carga estática": {
+                    "Elemento principal": {"diametro_maximo": 2.5, "separacion_minima": 10},
+                    "Elemento no principal": {"diametro_maximo": 2.5, "separacion_minima": 10}
+                }
+            },
+            "Referencia": "AWS D1.1, Sección 6.15.1.1",
+            "Descripcion": "La porosidad en las soldaduras puede debilitar la unión y disminuir su resistencia al impacto..."
+        },
+        "AWS D1.3": {
+            "General": {"diametro_maximo": 1.5},
+            "Referencia": "AWS D1.3, Sección 5.14.1.1",
+            "Descripcion": "En la soldadura de chapas metálicas, la porosidad puede afectar gravemente la integridad estructural..."
+        },
+        "AWS D1.5": {
+            "General": {"diametro_maximo": 2.0},
+            "Referencia": "AWS D1.5, Sección 6.15.1.2",
+            "Descripcion": "En la construcción de puentes, las soldaduras deben ser especialmente resistentes a la fatiga..."
+        },
+        "ASME IX": {
+            "General": {"diametro_maximo": 0.0},
+            "Referencia": "ASME IX, Sección QW-191",
+            "Descripcion": "En aplicaciones de alta presión, la porosidad puede comprometer la capacidad de la soldadura..."
+        },
+        "API 1104": {
+            "General": {"diametro_maximo": 2.5},
+            "Referencia": "API 1104, Sección 6.15.1.3",
+            "Descripcion": "En la soldadura de tuberías, la porosidad puede causar fugas y comprometer la integridad de la tubería..."
+        }
+    },
+    "Socavado": {
+        "AWS D1.1": {
+            "Tubular": {
+                "Carga cíclica": {
+                    "Elemento principal": {"profundidad_maxima": 0.25, "longitud_maxima": 25},
+                    "Elemento no principal": {"profundidad_maxima": 0.25, "longitud_maxima": 25}
+                },
+                "Carga estática": {
+                    "Elemento principal": {"profundidad_maxima": 0.5, "longitud_maxima": 40},
+                    "Elemento no principal": {"profundidad_maxima": 0.5, "longitud_maxima": 40}
+                }
+            },
+            "No tubular": {
+                "Carga cíclica": {
+                    "Elemento principal": {"profundidad_maxima": 0.25, "longitud_maxima": 25},
+                    "Elemento no principal": {"profundidad_maxima": 0.25, "longitud_maxima": 25}
+                },
+                "Carga estática": {
+                    "Elemento principal": {"profundidad_maxima": 0.5, "longitud_maxima": 40},
+                    "Elemento no principal": {"profundidad_maxima": 0.5, "longitud_maxima": 40}
+                }
+            },
+            "Referencia": "AWS D1.1, Sección 6.26.2.1",
+            "Descripcion": "El socavado puede debilitar la soldadura y reducir la capacidad de la estructura para soportar cargas..."
+        },
+        "AWS D1.3": {
+            "General": {"profundidad_maxima": 0.20, "longitud_maxima": 30},
+            "Referencia": "AWS D1.3, Sección 5.15.2.1",
+            "Descripcion": "En la soldadura de chapas metálicas, el socavado es un defecto crítico que puede comprometer la resistencia del material..."
+        },
+        "AWS D1.5": {
+            "General": {"profundidad_maxima": 0.3, "longitud_maxima": 30},
+            "Referencia": "AWS D1.5, Sección 6.15.2.2",
+            "Descripcion": "En la construcción de puentes, el socavado es un defecto peligroso porque puede crear puntos de concentración de estrés..."
+        },
+        "ASME IX": {
+            "General": {"profundidad_maxima": 0.25, "longitud_maxima": 25},
+            "Referencia": "ASME IX, Sección QW-191",
+            "Descripcion": "En aplicaciones de alta presión, el socavado puede ser un punto de inicio de fallos..."
+        },
+        "API 1104": {
+            "General": {"profundidad_maxima": 0.25, "longitud_maxima": 25},
+            "Referencia": "API 1104, Sección 6.15.2.1",
+            "Descripcion": "El socavado en soldaduras de tuberías puede debilitar la estructura y hacerla más susceptible a fallos bajo presión..."
+        }
+    },
+    "Grietas": {
+        "AWS D1.1": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.1, Sección 6.26.1",
+            "Descripcion": "Las grietas son uno de los defectos más críticos en una soldadura..."
+        },
+        "AWS D1.3": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.3, Sección 5.14.1.2",
+            "Descripcion": "En aplicaciones de chapa metálica, las grietas pueden propagarse fácilmente..."
+        },
+        "AWS D1.5": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.5, Sección 6.26.1",
+            "Descripcion": "Las grietas en estructuras de puentes son especialmente peligrosas debido a las cargas cíclicas..."
+        },
+        "ASME IX": {
+            "General": {"permitido": False},
+            "Referencia": "ASME IX, Sección QW-191",
+            "Descripcion": "En aplicaciones de alta presión, las grietas pueden actuar como puntos de fuga..."
+        },
+        "API 1104": {
+            "General": {"permitido": False},
+            "Referencia": "API 1104, Sección 6.26.1",
+            "Descripcion": "Las grietas en soldaduras de tuberías son inaceptables debido al riesgo de fugas y fallos bajo presión..."
+        }
+    },
+    "Traslape": {
+        "AWS D1.1": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.1, Sección 6.26.2",
+            "Descripcion": "El traslape es un defecto donde el material de soldadura se extiende más allá de la unión sin fusionarse correctamente..."
+        },
+        "AWS D1.3": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.3, Sección 5.14.2",
+            "Descripcion": "En la soldadura de chapas metálicas, el traslape es particularmente problemático debido al menor espesor del material..."
+        },
+        "AWS D1.5": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.5, Sección 6.26.2",
+            "Descripcion": "En la construcción de puentes, el traslape es un defecto crítico porque puede crear puntos de concentración de estrés..."
+        },
+        "ASME IX": {
+            "General": {"permitido": False},
+            "Referencia": "ASME IX, Sección QW-191",
+            "Descripcion": "En aplicaciones de alta presión, el traslape puede actuar como un punto débil que podría fallar bajo presión..."
+        },
+        "API 1104": {
+            "General": {"permitido": False},
+            "Referencia": "API 1104, Sección 6.26.2",
+            "Descripcion": "En las soldaduras de tuberías, el traslape es un defecto grave que puede llevar a fallos estructurales..."
+        }
+    },
+    "Marcas de Arco": {
+        "AWS D1.1": {
+            "Elemento principal": {"permitido": False},
+            "Elemento no principal": {"permitido": True},
+            "Referencia": "AWS D1.1, Sección 6.26.4.1",
+            "Descripcion": "Las marcas de arco son áreas donde el electrodo ha tocado accidentalmente la pieza de trabajo..."
+        },
+        "AWS D1.3": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.3, Sección 5.14.3",
+            "Descripcion": "En la soldadura de chapas metálicas, las marcas de arco pueden causar debilidades significativas..."
+        },
+        "AWS D1.5": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.5, Sección 6.26.4.2",
+            "Descripcion": "Las marcas de arco en las soldaduras de puentes pueden comprometer la capacidad de carga..."
+        },
+        "ASME IX": {
+            "General": {"permitido": False},
+            "Referencia": "ASME IX, Sección QW-191",
+            "Descripcion": "En aplicaciones de alta presión, las marcas de arco pueden provocar fallos críticos..."
+        },
+        "API 1104": {
+            "General": {"permitido": False},
+            "Referencia": "API 1104, Sección 6.26.4.2",
+            "Descripcion": "Las marcas de arco en soldaduras de tuberías pueden actuar como puntos de inicio de corrosión o fallos bajo presión..."
+        }
+    },
+    "Inclusiones de Escoria": {
+        "AWS D1.1": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.1, Sección 6.26.5",
+            "Descripcion": "Las inclusiones de escoria ocurren cuando el material no metálico, como el revestimiento del electrodo, queda atrapado en la soldadura..."
+        },
+        "AWS D1.3": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.3, Sección 5.14.4",
+            "Descripcion": "En las chapas metálicas, las inclusiones de escoria pueden ser particularmente perjudiciales debido al menor espesor del material..."
+        },
+        "AWS D1.5": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.5, Sección 6.26.5",
+            "Descripcion": "Las inclusiones de escoria en estructuras de puentes son inaceptables debido a la necesidad de garantizar la máxima resistencia y durabilidad..."
+        },
+        "ASME IX": {
+            "General": {"permitido": False},
+            "Referencia": "ASME IX, Sección QW-191",
+            "Descripcion": "En aplicaciones de alta presión, las inclusiones de escoria pueden actuar como puntos de inicio para fallos bajo tensión..."
+        },
+        "API 1104": {
+            "General": {"permitido": False},
+            "Referencia": "API 1104, Sección 6.26.5",
+            "Descripcion": "En soldaduras de tuberías, las inclusiones de escoria pueden llevar a fallos estructurales y fugas bajo presión..."
+        }
+    },
+    "Fisura de Cráter": {
+        "AWS D1.1": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.1, Sección 6.26.6",
+            "Descripcion": "Las fisuras de cráter se forman al final de una pasada de soldadura cuando el metal caliente se contrae al enfriarse..."
+        },
+        "AWS D1.3": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.3, Sección 5.14.5",
+            "Descripcion": "En la soldadura de chapas metálicas, las fisuras de cráter son particularmente peligrosas debido al menor espesor del material..."
+        },
+        "AWS D1.5": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.5, Sección 6.26.6",
+            "Descripcion": "En estructuras de puentes, las fisuras de cráter pueden comprometer la durabilidad y la resistencia de la soldadura..."
+        },
+        "ASME IX": {
+            "General": {"permitido": False},
+            "Referencia": "ASME IX, Sección QW-191",
+            "Descripcion": "En aplicaciones de alta presión, las fisuras de cráter pueden actuar como puntos de iniciación de fallos..."
+        },
+        "API 1104": {
+            "General": {"permitido": False},
+            "Referencia": "API 1104, Sección 6.26.6",
+            "Descripcion": "En las soldaduras de tuberías, las fisuras de cráter pueden llevar a fallos por fatiga o fractura..."
+        }
+    },
+    "Falta de Fusión": {
+        "AWS D1.1": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.1, Sección 6.26.7",
+            "Descripcion": "La falta de fusión ocurre cuando el material de soldadura no se une adecuadamente con el material base o entre pasadas de soldadura..."
+        },
+        "AWS D1.3": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.3, Sección 5.14.6",
+            "Descripcion": "En la soldadura de chapas metálicas, la falta de fusión es un defecto peligroso debido a la delgadez del material..."
+        },
+        "AWS D1.5": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.5, Sección 6.26.7",
+            "Descripcion": "En la construcción de puentes, la falta de fusión es un defecto inaceptable porque puede comprometer gravemente la resistencia estructural..."
+        },
+        "ASME IX": {
+            "General": {"permitido": False},
+            "Referencia": "ASME IX, Sección QW-191",
+            "Descripcion": "En aplicaciones de alta presión, la falta de fusión puede llevar a fallos catastróficos..."
+        },
+        "API 1104": {
+            "General": {"permitido": False},
+            "Referencia": "API 1104, Sección 6.26.7",
+            "Descripcion": "En las soldaduras de tuberías, la falta de fusión es un defecto grave que puede comprometer la integridad de la tubería..."
+        }
+    },
+    "Falta de Penetración": {
+        "AWS D1.1": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.1, Sección 6.26.8",
+            "Descripcion": "La falta de penetración ocurre cuando la soldadura no se extiende completamente a través del espesor del material base..."
+        },
+        "AWS D1.3": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.3, Sección 5.14.7",
+            "Descripcion": "En la soldadura de chapas metálicas, la falta de penetración es un defecto grave debido a la delgadez del material..."
+        },
+        "AWS D1.5": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.5, Sección 6.26.8",
+            "Descripcion": "En la construcción de puentes, la falta de penetración es un defecto crítico que puede comprometer la resistencia estructural..."
+        },
+        "ASME IX": {
+            "General": {"permitido": False},
+            "Referencia": "ASME IX, Sección QW-191",
+            "Descripcion": "En aplicaciones de alta presión, la falta de penetración puede llevar a fallos catastróficos..."
+        },
+        "API 1104": {
+            "General": {"permitido": False},
+            "Referencia": "API 1104, Sección 6.26.8",
+            "Descripcion": "En las soldaduras de tuberías, la falta de penetración es un defecto inaceptable que puede llevar a fallos estructurales..."
+        }
+    },
+    "Exceso de Penetración": {
+        "AWS D1.1": {
+            "General": {"exceso_maximo": 3.0},
+            "Referencia": "AWS D1.1, Sección 6.26.9",
+            "Descripcion": "El exceso de penetración ocurre cuando el material de soldadura se extiende más allá de la raíz de la soldadura..."
+        },
+        "AWS D1.3": {
+            "General": {"exceso_maximo": 3.0},
+            "Referencia": "AWS D1.3, Sección 5.14.8",
+            "Descripcion": "En la soldadura de chapas metálicas, el exceso de penetración puede resultar en una soldadura débil..."
+        },
+        "AWS D1.5": {
+            "General": {"exceso_maximo": 3.0},
+            "Referencia": "AWS D1.5, Sección 6.26.9",
+            "Descripcion": "En la construcción de puentes, un exceso de penetración puede crear puntos de concentración de estrés..."
+        },
+        "ASME IX": {
+            "General": {"exceso_maximo": 3.0},
+            "Referencia": "ASME IX, Sección QW-191",
+            "Descripcion": "En aplicaciones de alta presión, el exceso de penetración puede actuar como un área de debilidad..."
+        },
+        "API 1104": {
+            "General": {"exceso_maximo": 3.0},
+            "Referencia": "API 1104, Sección 6.26.9",
+            "Descripcion": "En soldaduras de tuberías, un exceso de penetración puede crear áreas propensas a la corrosión y a la fractura..."
+        }
+    },
+    "Convexidad Excesiva": {
+        "AWS D1.1": {
+            "General": {"exceso_maximo": 3.0},
+            "Referencia": "AWS D1.1, Sección 6.26.10",
+            "Descripcion": "La convexidad excesiva en una soldadura ocurre cuando la cara de la soldadura sobresale en exceso..."
+        },
+        "AWS D1.3": {
+            "General": {"exceso_maximo": 3.0},
+            "Referencia": "AWS D1.3, Sección 5.14.9",
+            "Descripcion": "En la soldadura de chapas metálicas, la convexidad excesiva puede crear áreas propensas a fallos bajo carga..."
+        },
+        "AWS D1.5": {
+            "General": {"exceso_maximo": 3.0},
+            "Referencia": "AWS D1.5, Sección 6.26.10",
+            "Descripcion": "En la construcción de puentes, la convexidad excesiva puede afectar negativamente la capacidad de la soldadura para soportar cargas..."
+        },
+        "ASME IX": {
+            "General": {"exceso_maximo": 3.0},
+            "Referencia": "ASME IX, Sección QW-191",
+            "Descripcion": "En aplicaciones de alta presión, una convexidad excesiva puede crear concentraciones de esfuerzo..."
+        },
+        "API 1104": {
+            "General": {"exceso_maximo": 3.0},
+            "Referencia": "API 1104, Sección 6.26.10",
+            "Descripcion": "En soldaduras de tuberías, la convexidad excesiva puede aumentar la susceptibilidad a la corrosión y a la fatiga..."
+        }
+    },
+    "Refuerzo": {
+        "AWS D1.1": {
+            "General": {"exceso_maximo": 2.5},
+            "Referencia": "AWS D1.1, Sección 6.26.11",
+            "Descripcion": "El refuerzo es la cantidad de material de soldadura que sobresale por encima de la superficie del material base..."
+        },
+        "AWS D1.3": {
+            "General": {"exceso_maximo": 2.5},
+            "Referencia": "AWS D1.3, Sección 5.14.10",
+            "Descripcion": "En la soldadura de chapas metálicas, un refuerzo excesivo puede resultar en una soldadura frágil y propensa a fallos..."
+        },
+        "AWS D1.5": {
+            "General": {"exceso_maximo": 2.5},
+            "Referencia": "AWS D1.5, Sección 6.26.11",
+            "Descripcion": "En la construcción de puentes, un refuerzo excesivo puede reducir la vida útil de la soldadura..."
+        },
+        "ASME IX": {
+            "General": {"exceso_maximo": 2.5},
+            "Referencia": "ASME IX, Sección QW-191",
+            "Descripcion": "En aplicaciones de alta presión, un refuerzo excesivo puede aumentar el riesgo de fallos..."
+        },
+        "API 1104": {
+            "General": {"exceso_maximo": 2.5},
+            "Referencia": "API 1104, Sección 6.26.11",
+            "Descripcion": "En soldaduras de tuberías, un refuerzo excesivo puede llevar a fallos estructurales, especialmente bajo presión elevada..."
+        }
+    },
+    "Pasada de Raíz": {
+        "AWS D1.1": {
+            "General": {"profundidad_maxima": 1.5},
+            "Referencia": "AWS D1.1, Sección 6.26.12",
+            "Descripcion": "La pasada de raíz es la primera pasada de soldadura que se aplica en una unión..."
+        },
+        "AWS D1.3": {
+            "General": {"profundidad_maxima": 1.5},
+            "Referencia": "AWS D1.3, Sección 5.14.11",
+            "Descripcion": "En la soldadura de chapas metálicas, una pasada de raíz excesiva puede llevar a una soldadura frágil..."
+        },
+        "AWS D1.5": {
+            "General": {"profundidad_maxima": 1.5},
+            "Referencia": "AWS D1.5, Sección 6.26.12",
+            "Descripcion": "En la construcción de puentes, una pasada de raíz profunda puede crear puntos débiles..."
+        },
+        "ASME IX": {
+            "General": {"profundidad_maxima": 1.5},
+            "Referencia": "ASME IX, Sección QW-191",
+            "Descripcion": "En aplicaciones de alta presión, una pasada de raíz profunda puede ser crítica..."
+        },
+        "API 1104": {
+            "General": {"profundidad_maxima": 1.5},
+            "Referencia": "API 1104, Sección 6.26.12",
+            "Descripcion": "En soldaduras de tuberías, una pasada de raíz profunda puede comprometer la resistencia estructural..."
+        }
+    },
+    "Salpicadura": {
+        "AWS D1.1": {
+            "General": {"permitido": True},
+            "Referencia": "AWS D1.1, Sección 6.26.13",
+            "Descripcion": "La salpicadura no es un defecto crítico, pero debe ser eliminada si afecta la funcionalidad o estética de la soldadura..."
+        },
+        "AWS D1.3": {
+            "General": {"permitido": True},
+            "Referencia": "AWS D1.3, Sección 5.14.12",
+            "Descripcion": "En la soldadura de chapas metálicas, la salpicadura puede ser problemática, especialmente si se van a aplicar revestimientos protectores..."
+        },
+        "AWS D1.5": {
+            "General": {"permitido": True},
+            "Referencia": "AWS D1.5, Sección 6.26.13",
+            "Descripcion": "En la construcción de puentes, aunque la salpicadura no afecta directamente la integridad estructural, puede ser un problema estético..."
+        },
+        "ASME IX": {
+            "General": {"permitido": True},
+            "Referencia": "ASME IX, Sección QW-191",
+            "Descripcion": "En aplicaciones de alta presión, la salpicadura puede ser una preocupación si afecta la limpieza de la soldadura..."
+        },
+        "API 1104": {
+            "General": {"permitido": True},
+            "Referencia": "API 1104, Sección 6.26.13",
+            "Descripcion": "En soldaduras de tuberías, la salpicadura puede interferir con los revestimientos y causar problemas de corrosión..."
+        }
+    },
+    "Aporte Insuficiente": {
+        "AWS D1.1": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.1, Sección 6.26.14",
+            "Descripcion": "El aporte insuficiente ocurre cuando no se deposita suficiente material de soldadura para llenar completamente la junta..."
+        },
+        "AWS D1.3": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.3, Sección 5.14.13",
+            "Descripcion": "En la soldadura de chapas metálicas, un aporte insuficiente puede llevar a la formación de una soldadura frágil..."
+        },
+        "AWS D1.5": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.5, Sección 6.26.14",
+            "Descripcion": "En la construcción de puentes, un aporte insuficiente puede comprometer la capacidad de la estructura para soportar cargas dinámicas..."
+        },
+        "ASME IX": {
+            "General": {"permitido": False},
+            "Referencia": "ASME IX, Sección QW-191",
+            "Descripcion": "En aplicaciones de alta presión, un aporte insuficiente puede ser crítico..."
+        },
+        "API 1104": {
+            "General": {"permitido": False},
+            "Referencia": "API 1104, Sección 6.26.14",
+            "Descripcion": "En soldaduras de tuberías, un aporte insuficiente puede llevar a la formación de soldaduras débiles..."
+        }
+    },
+    "Cateto Insuficiente": {
+        "AWS D1.1": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.1, Sección 6.26.15",
+            "Descripcion": "El cateto de una soldadura de filete es la longitud del lado de la soldadura que forma el ángulo recto con la pieza de trabajo..."
+        },
+        "AWS D1.3": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.3, Sección 5.14.14",
+            "Descripcion": "En la soldadura de chapas metálicas, un cateto insuficiente puede resultar en una soldadura débil..."
+        },
+        "AWS D1.5": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.5, Sección 6.26.15",
+            "Descripcion": "En la construcción de puentes, un cateto insuficiente puede comprometer la integridad estructural de la soldadura..."
+        },
+        "ASME IX": {
+            "General": {"permitido": False},
+            "Referencia": "ASME IX, Sección QW-191",
+            "Descripcion": "En aplicaciones críticas, un cateto insuficiente puede llevar a fallos estructurales bajo carga..."
+        },
+        "API 1104": {
+            "General": {"permitido": False},
+            "Referencia": "API 1104, Sección 6.26.15",
+            "Descripcion": "En las soldaduras de tuberías, un cateto insuficiente puede comprometer la resistencia de la soldadura..."
+        }
+    },
+    "Alineación Deficiente": {
+        "AWS D1.1": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.1, Sección 5.23",
+            "Descripcion": "La alineación deficiente se refiere a la mala colocación de las piezas a unir antes de la soldadura..."
+        },
+        "AWS D1.3": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.3, Sección 3.3",
+            "Descripcion": "En la soldadura de chapas metálicas, una alineación deficiente puede resultar en un ensamblaje incorrecto..."
+        },
+        "AWS D1.5": {
+            "General": {"permitido": False},
+            "Referencia": "AWS D1.5, Sección 3.3.3",
+            "Descripcion": "En la construcción de puentes, la alineación precisa de las piezas es crítica para garantizar la distribución adecuada de las cargas..."
+        },
+        "ASME IX": {
+            "General": {"permitido": False},
+            "Referencia": "ASME IX, Sección QW-462.3",
+            "Descripcion": "En aplicaciones de alta presión, una alineación deficiente puede llevar a un ensamblaje inadecuado..."
+        },
+        "API 1104": {
+            "General": {"permitido": False},
+            "Referencia": "API 1104, Sección 7.2",
+            "Descripcion": "En las soldaduras de tuberías, una alineación deficiente puede resultar en un flujo de fluido irregular..."
+        }
+    }
+}
+
+# Diccionario de conversiones de unidades
+conversiones = {
+    "Métricas": {
+        "mm": {"cm": lambda x: x / 10, "m": lambda x: x / 1000, "inch": lambda x: x / 25.4},
+        "cm": {"mm": lambda x: x * 10, "m": lambda x: x / 100, "inch": lambda x: x / 2.54},
+        "m": {"mm": lambda x: x * 1000, "cm": lambda x: x * 100, "inch": lambda x: x * 39.3701},
+        "inch": {"mm": lambda x: x * 25.4, "cm": lambda x: x * 2.54, "m": lambda x: x / 39.3701},
+        "ft": {"m": lambda x: x * 0.3048, "inch": lambda x: x * 12, "mm": lambda x: x * 304.8},
+        "yd": {"m": lambda x: x * 0.9144, "inch": lambda x: x * 36, "mm": lambda x: x * 914.4}
+    },
+    "Dureza": {
+        "Brinell": {
+            "Vickers": lambda x: x * 0.95,
+            "Rockwell HRa": lambda x: (x - 80) / 2,
+            "Rockwell HRb": lambda x: (500 - x) / 10,
+            "Rockwell HRc": lambda x: (x - 70) / 2
+        },
+        "Vickers": {
+            "Brinell": lambda x: x / 0.95,
+            "Rockwell HRa": lambda x: (x - 80) / 2,
+            "Rockwell HRb": lambda x: (500 - x) / 10,
+            "Rockwell HRc": lambda x: (x - 70) / 2
+        },
+        "Rockwell HRa": {
+            "Brinell": lambda x: (x * 2) + 80,
+            "Vickers": lambda x: (x * 2) + 80,
+            "Rockwell HRb": lambda x: (x - 20) * 1.1,
+            "Rockwell HRc": lambda x: x - 25
+        },
+        "Rockwell HRb": {
+            "Brinell": lambda x: 500 - (x * 10),
+            "Vickers": lambda x: 500 - (x * 10),
+            "Rockwell HRa": lambda x: (x * 0.9) + 20,
+            "Rockwell HRc": lambda x: x / 2 - 10
+        },
+        "Rockwell HRc": {
+            "Brinell": lambda x: (x * 2) + 70,
+            "Vickers": lambda x: (x * 2) + 70,
+            "Rockwell HRa": lambda x: x + 25,
+            "Rockwell HRb": lambda x: (x + 10) * 2
+        }
+    },
+    "Fuerza": {
+        "N": {"lbf": lambda x: x * 0.224809, "kgf": lambda x: x * 0.101972},
+        "lbf": {"N": lambda x: x / 0.224809, "kgf": lambda x: x * 0.453592},
+        "kgf": {"N": lambda x: x / 0.101972, "lbf": lambda x: x * 2.20462},
+    },
+    "Peso": {
+        "kg": {"lb": lambda x: x * 2.20462},
+        "lb": {"kg": lambda x: x / 2.20462},
+    },
+    "Energía": {
+        "J": {"cal": lambda x: x / 4.184, "kWh": lambda x: x / 3.6e6},
+        "cal": {"J": lambda x: x * 4.184, "kWh": lambda x: x / 8.6e5},
+        "kWh": {"J": lambda x: x * 3.6e6, "cal": lambda x: x * 860421},
+    },
+    "Presión": {
+        "Pa": {"bar": lambda x: x * 1e-5, "psi": lambda x: x * 0.000145038},
+        "bar": {"Pa": lambda x: x * 1e5, "psi": lambda x: x * 14.5038},
+        "psi": {"Pa": lambda x: x / 0.000145038, "bar": lambda x: x / 14.5038},
+    },
+    "Potencia": {
+        "W": {"kW": lambda x: x / 1000, "hp": lambda x: x / 745.7},
+        "kW": {"W": lambda x: x * 1000, "hp": lambda x: x * 1.34102},
+        "hp": {"W": lambda x: x * 745.7, "kW": lambda x: x / 1.34102},
+    }
+}
+
+# Función para convertir unidades
+def convertir_unidades(categoria, unidad_origen, unidad_destino, valor):
+    try:
+        return conversiones[categoria][unidad_origen][unidad_destino](valor)
+    except KeyError:
+        print("\nConversión no disponible entre las unidades seleccionadas.")
+        return None
+
+# Función para calcular potencia eléctrica
+def calcular_potencia_electrica(volts, amps, factor_potencia=1):
+    return volts * amps * factor_potencia
+
+# Función para limpiar pantalla
+def limpiar_pantalla():
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+# Función para mostrar el encabezado
+def mostrar_encabezado(codigo=None):
+    limpiar_pantalla()
+    encabezado_base = "CRITERIOS DE INSPECCIÓN EN SOLDADURA  by Smart+ 2024"
+    if codigo:
+        encabezado_base = f"EVALUACIÓN SEGÚN CÓDIGO {codigo} by Smart+ 2024"
+    print("=" * 55)
+    print(encabezado_base.center(20))
+    print("=" * 55)
+    
+
+# Función para mostrar el encabezado 2
+def mostrar_encabezado2(codigo=None):
+    limpiar_pantalla()
+    encabezado_base = "CODIGO {codigo}"
+    if codigo:
+        encabezado_base = f"EVALUACIÓN SEGÚN CÓDIGO {codigo}"
+    print("=" * 55)
+    print(encabezado_base.center(10))
+    print("=" * 55)
+    
+
+# Función para mostrar descripción del código
+def mostrar_descripcion_codigo(codigo):
+    descripciones = {
+        "AWS D1.1": "El código AWS D1.1 es utilizado para la soldadura estructural en acero,\ncomúnmente aplicado en construcción y estructuras metálicas, \nconsiderando factores como tipo de estructura (tubular o no tubular),\ntipo de carga (cíclica o estática) y tipo de elemento (principal o no principal).",
+        "AWS D1.3": "El código AWS D1.3 es específico para la soldadura de chapas de acero de poco espesor, \ncentrándose en técnicas y precauciones para evitar deformaciones y defectos en materiales delgados.",
+        "AWS D1.5": "El código AWS D1.5 es utilizado principalmente para la soldadura de estructuras de puentes, \nabarcando requisitos rigurosos en cuanto a la resistencia y durabilidad de las soldaduras.",
+        "ASME IX": "El código ASME IX se utiliza para la calificación de soldadores y procedimientos de soldadura, \naplicable en industrias como la petroquímica, refinerías y fabricación de recipientes a presión.",
+        "API 1104": "El código API 1104 es aplicado en la soldadura de tuberías para transporte de hidrocarburos y gas, \nestableciendo estándares rigurosos para asegurar la integridad de las soldaduras en condiciones de alta presión."
+    }
+    print(f"\nDescripción del Código Seleccionado: {codigo}\n")
+    print(descripciones.get(codigo, "No hay descripción disponible para este código."))
+
+# Función para obtener criterios comunes entre dos códigos para un defecto dado
+def obtener_criterios_comunes(defecto, codigo_origen, codigo_destino):
+    criterios_origen = set()
+    criterios_destino = set()
+    criterio_defecto_origen = datos_soldadura[defecto][codigo_origen]
+    criterio_defecto_destino = datos_soldadura[defecto][codigo_destino]
+
+    if 'General' in criterio_defecto_origen:
+        criterios_origen.update(criterio_defecto_origen['General'].keys())
+    else:
+        for key in criterio_defecto_origen.keys():
+            if key not in ['Referencia', 'Descripcion']:
+                criterios_origen.update(criterio_defecto_origen[key].keys())
+
+    if 'General' in criterio_defecto_destino:
+        criterios_destino.update(criterio_defecto_destino['General'].keys())
+    else:
+        for key in criterio_defecto_destino.keys():
+            if key not in ['Referencia', 'Descripcion']:
+                criterios_destino.update(criterio_defecto_destino[key].keys())
+
+    criterios_comunes = criterios_origen.intersection(criterios_destino)
+    return list(criterios_comunes)
+
+# Función para evaluar si un defecto cumple con las normas de un código específico
+def evaluar_defecto(tipo_defecto, codigo, estructura, carga, elemento, dimensiones, espesor_material, revaluar=False, codigo_origen=None):
+    resultado = {}
+    criterio_defecto = datos_soldadura.get(tipo_defecto, {}).get(codigo)
+
+    if not criterio_defecto:
+        resultado["cumple"] = False
+        resultado["mensaje"] = f"No se encontró información para el defecto '{tipo_defecto}' en el código '{codigo}'."
+        return resultado
+
+    # Asegurarse de que dimensiones no es None
+    if dimensiones is None:
+        dimensiones = {}
+
+    if 'General' in criterio_defecto:
+        criterio_especifico = criterio_defecto['General']
+    elif estructura and carga and elemento:
+        try:
+            criterio_especifico = criterio_defecto[estructura][carga][elemento]
+        except KeyError:
+            resultado["cumple"] = False
+            resultado["mensaje"] = "No se encontró el criterio específico para la evaluación."
+            return resultado
+    else:
+        resultado["cumple"] = False
+        resultado["mensaje"] = "Faltan datos para la evaluación (estructura, carga, elemento)."
+        return resultado
+
+    if revaluar and codigo_origen:
+        criterios_comunes = obtener_criterios_comunes(tipo_defecto, codigo_origen, codigo)
+        dimensiones = {k: v for k, v in dimensiones.items() if k in criterios_comunes}
+
+    if "permitido" in criterio_especifico:
+        if not criterio_especifico["permitido"]:
+            resultado["cumple"] = False
+            resultado["mensaje"] = f"El defecto de {tipo_defecto.lower()} no es permitido."
+            resultado["referencia"] = criterio_defecto.get("Referencia", "No disponible")
+            resultado["descripcion"] = criterio_defecto.get("Descripcion", "No disponible")
+        else:
+            resultado["cumple"] = True
+            resultado["mensaje"] = f"El defecto de {tipo_defecto.lower()} es permitido bajo ciertas condiciones."
+            resultado["referencia"] = criterio_defecto.get("Referencia", "No disponible")
+            resultado["descripcion"] = criterio_defecto.get("Descripcion", "No disponible")
+    else:
+        for dimension, valor in dimensiones.items():
+            criterio_valor = criterio_especifico.get(dimension)
+            if criterio_valor is None:
+                continue  # No hay criterio para esta dimensión
+            if valor > criterio_valor:
+                resultado["cumple"] = False
+                resultado["mensaje"] = f"El {dimension} de {tipo_defecto.lower()} excede el máximo permitido."
+                resultado["referencia"] = criterio_defecto.get("Referencia", "No disponible")
+                resultado["descripcion"] = criterio_defecto.get("Descripcion", "No disponible")
+                resultado["rango"] = f"{criterio_valor}"
+                resultado["valor_proporcionado"] = {k: v for k, v in dimensiones.items()}
+                break
+        else:
+            resultado["cumple"] = True
+            resultado["mensaje"] = f"El {tipo_defecto.lower()} está dentro de los límites permitidos."
+            resultado["referencia"] = criterio_defecto.get("Referencia", "No disponible")
+            resultado["descripcion"] = criterio_defecto.get("Descripcion", "No disponible")
+            resultado["rango"] = {k: f"{criterio_especifico.get(k, 'No especificado')}" for k in dimensiones.keys()}
+            resultado["valor_proporcionado"] = {k: v for k, v in dimensiones.items()}
+
+    return resultado
+
+# Función para capturar las dimensiones necesarias
+def capturar_dimensiones(tipo_defecto, codigo, estructura, carga, elemento, espesor_material):
+    dimensiones = {}
+    criterio_defecto = datos_soldadura[tipo_defecto][codigo]
+
+    if 'General' in criterio_defecto:
+        criterios_dimensiones = criterio_defecto['General'].keys()
+    elif estructura and carga and elemento:
+        criterios_dimensiones = criterio_defecto[estructura][carga][elemento].keys()
+    else:
+        criterios_dimensiones = []
+
+    for dimension in criterios_dimensiones:
+        if dimension not in ['permitido', 'Referencia', 'Descripcion']:
+            while True:
+                try:
+                    valor = float(input(f"Ingrese el valor de {dimension} (): "))
+                    dimensiones[dimension] = valor
+                    break
+                except ValueError:
+                    print(f"\nEntrada inválida para {dimension}. Por favor, ingrese un valor numérico.")
+    return dimensiones
+
+# Menú de conversión de unidades
+def menu_conversion_unidades():
+    while True:
+        limpiar_pantalla()
+        mostrar_encabezado()
+        print("\nSeleccione la categoría de conversión de unidades:")
+        print()
+        
+        print("[1] Métricas")
+        print("[2] Dureza")
+        print("[3] Fuerza")
+        print("[4] Peso")
+        print("[5] Energía")
+        print("[6] Presión")
+        print("[7] Potencia")
+        print("[8] Cálculo de Potencia Eléctrica")
+        print("[0] Volver al menú principal")
+        
+        opcion_categoria = input("\nIngrese el número correspondiente a la categoría: ")
+
+        categorias = ["Métricas", "Dureza", "Fuerza", "Peso", "Energía", "Presión", "Potencia"]
+        
+        if opcion_categoria == '0':
+            return
+        
+        elif opcion_categoria == '8':
+            limpiar_pantalla()
+            print("\n=== Cálculo de Potencia Eléctrica ===\n")
+            try:
+                volts = float(input("Ingrese el voltaje (V): "))
+                amps = float(input("Ingrese la corriente (A): "))
+                factor_potencia = float(input("Ingrese el factor de potencia (si no aplica, ingrese 1): "))
+                potencia = calcular_potencia_electrica(volts, amps, factor_potencia)
+                print()
+                print(f"\nLa potencia eléctrica es: {potencia:.2f} W")
+            except ValueError:
+                print("\nEntrada inválida. Por favor, ingrese valores numéricos.")
+            input("\nPresione Enter para volver al menú principal...")
+            continue
+
+        try:
+            categoria = categorias[int(opcion_categoria) - 1]
+        except (ValueError, IndexError):
+            print("\nOpción no válida. Intente de nuevo.")
+            input("\nPresione Enter para continuar...")
+            continue
+
+        limpiar_pantalla()
+        unidades = list(conversiones[categoria].keys())
+        print(f"\nUnidades disponibles en la categoría {categoria}:")
+        for i, unidad in enumerate(unidades, 1):
+            print(f"[{i}] {unidad}")
+
+        try:
+            unidad_origen_opcion = int(input("\nSeleccione la unidad de origen: "))
+            print()
+            unidad_destino_opcion = int(input("Seleccione la unidad de destino: "))
+            unidad_origen = unidades[unidad_origen_opcion - 1]
+            unidad_destino = unidades[unidad_destino_opcion - 1]
+        except (ValueError, IndexError):
+            print("\nSelección inválida. Por favor, ingrese números válidos.")
+            input("\nPresione Enter para continuar...")
+            continue
+
+        try:
+            valor = float(input(f"\nIngrese el valor en {unidad_origen}: "))
+            resultado = convertir_unidades(categoria, unidad_origen, unidad_destino, valor)
+            if resultado is not None:
+                print(f"\n{valor} {unidad_origen} equivalen a {resultado:.2f} {unidad_destino}\n")
+        except ValueError:
+            print("\nEntrada inválida. Por favor, ingrese un valor numérico.")
+        input("Presione Enter para volver al menú principal...\n")
+
+# Integración de la captura de dimensiones en la evaluación
+def interfaz_defecto(codigo=None, tipo_defecto=None, dimensiones=None, estructura=None, carga=None, elemento=None, espesor_material=None):
+    while True:
+        if codigo is None:
+            limpiar_pantalla()
+            mostrar_encabezado()
+            print("\nSeleccione el código de evaluación:")
+            print()
+            
+            print("[1] AWS D1.1")
+            print("[2] AWS D1.3")
+            print("[3] AWS D1.5")
+            print("[4] ASME IX")
+            print("[5] API 1104")
+            print()
+            print("[0] Volver al menú principal")
+            
+            codigo_opcion = input("\nIngrese el número correspondiente al código: ")
+            print()
+            
+
+            codigos = ["AWS D1.1", "AWS D1.3", "AWS D1.5", "ASME IX", "API 1104"]
+            
+            if codigo_opcion == '0':
+                return
+            
+            try:
+                codigo = codigos[int(codigo_opcion) - 1]
+            except (ValueError, IndexError):
+                print("\nOpción no válida. Intente de nuevo.")
+                input("\nPresione Enter para continuar...")
+                continue
+            mostrar_encabezado2(codigo) 
+            print()
+            mostrar_descripcion_codigo(codigo)
+            input("\nPresione Enter para continuar...")
+
+        if tipo_defecto is None:
+            limpiar_pantalla()
+            mostrar_encabezado2(codigo)
+            print("\nSeleccione el tipo de defecto a evaluar:")
+            print()
+            
+            defectos = list(datos_soldadura.keys())
+            for i, defecto in enumerate(defectos, 1):
+                print(f"[{i}] {defecto}")
+            print("[0] Volver al menú principal")
+            
+            tipo_defecto_opcion = input("\nIngrese el número correspondiente al tipo de defecto: ")
+
+            if tipo_defecto_opcion == '0':
+                return
+            
+            try:
+                tipo_defecto = defectos[int(tipo_defecto_opcion) - 1]
+            except (ValueError, IndexError):
+                print("\nOpción no válida. Intente de nuevo.")
+                input("\nPresione Enter para continuar...")
+                continue
+
+        criterio_defecto = datos_soldadura[tipo_defecto][codigo]
+
+        if 'General' not in criterio_defecto:
+            if estructura is None:
+                limpiar_pantalla()
+                
+                print("\nSeleccione el tipo de estructura:")
+                print()
+                
+                print("[1] Tubular")
+                print("[2] No tubular")
+                estructura_opcion = input("\nIngrese el número correspondiente al tipo de estructura: ")
+
+                estructuras = ["Tubular", "No tubular"]
+
+                if estructura_opcion == '0':
+                    return
+
+                try:
+                    estructura = estructuras[int(estructura_opcion) - 1]
+                except (ValueError, IndexError):
+                    print("\nOpción no válida. Intente de nuevo.")
+                    input("\nPresione Enter para continuar...")
+                    continue
+
+            if carga is None:
+                limpiar_pantalla()
+                
+                print("\nSeleccione el tipo de carga:")
+                print()
+                
+                print("[1] Carga cíclica")
+                print("[2] Carga estática")
+                carga_opcion = input("\nIngrese el número correspondiente al tipo de carga: ")
+
+                cargas = ["Carga cíclica", "Carga estática"]
+
+                if carga_opcion == '0':
+                    return
+
+                try:
+                    carga = cargas[int(carga_opcion) - 1]
+                except (ValueError, IndexError):
+                    print("\nOpción no válida. Intente de nuevo.")
+                    input("\nPresione Enter para continuar...")
+                    continue
+
+            if elemento is None:
+                limpiar_pantalla()
+                
+                print("\nSeleccione el tipo de elemento:")
+                print()
+                
+                print("[1] Elemento principal")
+                print("[2] Elemento no principal")
+                elemento_opcion = input("\nIngrese el número correspondiente al tipo de elemento: ")
+                print()
+                print()
+
+                elementos = ["Elemento principal", "Elemento no principal"]
+
+                if elemento_opcion == '0':
+                    return
+
+                try:
+                    elemento = elementos[int(elemento_opcion) - 1]
+                except (ValueError, IndexError):
+                    print("\nOpción no válida. Intente de nuevo.")
+                    input("\nPresione Enter para continuar...")
+                    continue
+
+        if dimensiones is None:
+            dimensiones = capturar_dimensiones(tipo_defecto, codigo, estructura, carga, elemento, espesor_material)
+
+        evaluacion = evaluar_defecto(tipo_defecto, codigo, estructura, carga, elemento, dimensiones, espesor_material)
+
+        limpiar_pantalla()
+        mostrar_encabezado2(codigo)
+        print(f"\n=== Resultado de la Evaluación según {codigo} ===\n")
+        if evaluacion.get('cumple'):
+            print(f"✅ El defecto CUMPLE con el estándar.")
+        else:
+            print(f"❌ El defecto NO CUMPLE con el estándar.")
+        print(f"\nDetalles: {evaluacion.get('mensaje', 'No disponible')}")
+        print(f"Referencia al estándar: {evaluacion.get('referencia', 'No disponible')}\n")
+        print(f"Descripción: {evaluacion.get('descripcion', 'No disponible')}\n")
+        if 'rango' in evaluacion:
+            print(f"Rango del estándar: {evaluacion['rango']}")
+            print(f"Valor proporcionado: {evaluacion['valor_proporcionado']}\n")
+
+        print("\n¿Qué deseas hacer ahora?")
+        print()
+        
+        print("[1] Evaluar el mismo defecto con diferentes dimensiones")
+        print("[2] Evaluar otro defecto en el mismo elemento estructural")
+        print("[3] Volver a seleccionar el tipo de carga")
+        print("[4] Volver a seleccionar el elemento estructural")
+        print("[5] Evaluar con otro código")
+        print("[0] Volver al menú principal")
+        opcion_continuar = input("\nIngrese el número correspondiente a la opción deseada: ")
+
+        if opcion_continuar == '1':
+            dimensiones = None
+        elif opcion_continuar == '2':
+            tipo_defecto = None
+            dimensiones = None
+        elif opcion_continuar == '3':
+            carga = None
+            dimensiones = None
+        elif opcion_continuar == '4':
+            elemento = None
+            dimensiones = None
+        elif opcion_continuar == '5':
+            codigo = None
+            dimensiones = None
+        elif opcion_continuar == '0':
+            return
+        else:
+            print("\nOpción no válida. Intente de nuevo.")
+            input("\nPresione Enter para continuar...")
+
+# Función principal que muestra el menú principal
+def interfaz():
+    while True:
+        limpiar_pantalla()
+        mostrar_encabezado()
+        print("\nMENÚ PRINCIPAL:")
+        print()
+        
+        print("[1] Evaluar defecto de soldadura")
+        print("[2] Calcular garganta teórica de filete")
+        print("[3] Evaluar tamaño mínimo de filete")
+        print("[4] Conversor de Unidades")
+        print("[0] Salir")
+        
+        opcion_principal = input("\nIngrese el número correspondiente a la opción deseada: ")
+
+        if opcion_principal == '0':
+            print("\nGracias por usar el Evaluador de Defectos de Soldadura. ¡Hasta luego!\n")
+            exit()
+            
+        elif opcion_principal == '1':
+            interfaz_defecto()
+        elif opcion_principal == '2':
+            limpiar_pantalla()
+            print("\n=== Cálculo de Garganta Teórica de Filete ===\n")
+            try:
+                tamano_lado1 = float(input("Ingrese el tamaño del lado 1 del cordón (mm): "))
+                print()
+                tamano_lado2 = float(input("Ingrese el tamaño del lado 2 del cordón (mm): "))
+                print()
+                garganta = calcular_garganta_teorica(tamano_lado1, tamano_lado2)
+                print(f"\nLa garganta teórica es: {garganta:.2f} mm\n")
+            except ValueError:
+                print("\nEntrada inválida. Por favor, ingrese valores numéricos.")
+            input("Presione Enter para volver al menú principal...\n")
+        elif opcion_principal == '3':
+            limpiar_pantalla()
+            print("\n=== Evaluación del Tamaño Mínimo de Filete ===\n")
+            try:
+                espesor_material = float(input("Ingrese el espesor del material base (mm): "))
+                tamano_minimo = determinar_tamano_minimo_filete(espesor_material)
+                print(f"\nEl tamaño mínimo de filete requerido es: {tamano_minimo} mm\n")
+            except ValueError:
+                print("\nEntrada inválida. Por favor, ingrese un valor numérico.")
+            input("Presione Enter para volver al menú principal...\n")
+        elif opcion_principal == '4':
+            menu_conversion_unidades()
+        else:
+            print("\nOpción no válida. Intente de nuevo.")
+            input("\nPresione Enter para continuar...\n")
+
+# Función para calcular la garganta teórica de un filete con lados diferentes
+def calcular_garganta_teorica(tamano_lado1, tamano_lado2):
+    hipotenusa = math.sqrt(tamano_lado1**2 + tamano_lado2**2)
+    garganta = (tamano_lado1 * tamano_lado2) / hipotenusa
+    return garganta
+
+# Función para determinar el tamaño mínimo de filete según el espesor del material
+def determinar_tamano_minimo_filete(espesor_material):
+    if espesor_material <= 6:
+        return 3
+    elif espesor_material <= 12:
+        return 5
+    else:
+        return 6
+
+# Ejecutar la interfaz interactiva
+if __name__ == '__main__':
+    interfaz()
